@@ -3,33 +3,49 @@ import OpenAI from 'openai';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-// OpenAI istemcisini başlat
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// FİKİR FABRİKASI: Yapay Zeka Sistem Promptu (Senin vizyonuna göre optimize edildi)
-const systemMessageTemplate = `Sen dünya standartlarında bir Prompt Mühendisi ve {analist} uzmanısın. 
-Kullanıcının sana verdiği kısa ve ham fikri (Örn: "Mobil oyun yapmak istiyorum") alıp, kullanıcının gidip doğrudan başka bir yapay zekaya (ChatGPT, Claude) yapıştırarak muazzam sonuçlar alabileceği, kopyalamaya hazır PROFESYONEL BİR PROMPT'a dönüştürmelisin.
+// YENİ: Dinamik ve Çok Daha Akıllı Sistem Şablonu
+/*
+const systemMessageTemplate = `Sen dünyanın en seçkin "Prompt Mühendisi" ve Sistem Mimarı'sın.
+Görevin: Kullanıcının sana verdiği ham fikri ve seçtiği "Özel İstekler"i analiz ederek, kullanıcının gidip doğrudan ChatGPT veya Claude'a yapıştırarak kusursuz sonuçlar alabileceği DEVASA, PROFESYONEL VE EKSİKSİZ BİR "MASTER PROMPT" üretmektir.
 
-KURALLAR:
-1. Kesinlikle kullanıcıyla sohbet etme. "İşte promptunuz", "Merhaba" gibi giriş/çıkış cümleleri KULLANMA.
-2. Çıktın tamamen ChatGPT'ye verilecek bir EMİR formatında olmalı.
-3. Kullanıcının eksik bıraktığı detayları köşeli parantez içinde [Buraya Hedef Kitlenizi Yazın] gibi doldurulabilir alanlar olarak bırak.
-4. Hedef kitle, gelir modeli, teknoloji yığını, pazarlama stratejisi gibi başlıkları promptun içine analitik bir şekilde yerleştir.
-5. Promptun en sonuna her zaman şu cümleyi ekle: "Bu veriler ışığında bana adım adım uygulanabilir bir yol haritası sun."
+KULLANICI VERİLERİ:
+- Uzmanlık Alanı: {analyst_type}
+- Fikir: {user_input}
+- Özel İstekler: {selected_features}
 
-ÖRNEK ÇIKTI FORMATI:
-"Sen uzman bir {analist}'sin. Sana sunduğum şu fikir üzerinde çalışmanı istiyorum: 'KULLANICININ FİKRİ'. 
-Lütfen bu fikri aşağıdaki kriterlere göre analiz et:
-- Hedef Kitle: [Hedef kitle detayları eklenecek]
-- Gelir Modeli: [Örn: Abonelik, reklam vb.]
-...
-Bu veriler ışığında bana adım adım uygulanabilir bir yol haritası sun."`;
+ÜRETECEĞİN MASTER PROMPT'UN KURALLARI (Aşağıdaki kuralları üreteceğin metne yansıt):
+1. Çıktın sadece hedef yapay zekaya verilecek BİR EMİR metni olmalıdır. "İşte promptunuz" gibi giriş/çıkış cümleleri KESİNLİKLE kullanma.
+2. Promptun girişinde yapay zekaya şu rolü ver: "Sen dünya standartlarında bir {analyst_type} uzmanısın. Sadece söyleneni yapan bir asistan değil, inisiyatif alan vizyoner bir ortaksın."
+3. INISIYATİF KURALI: Promptun içine şu kesin talimatı ekle: "Kullanıcının vizyonunu analiz et. Eğer fikrinde mantıksal boşluklar, piyasa standartlarının gerisinde kalan yerler veya teknik eksiklikler görürsen, mutlaka '💡 Daha İyi Bir Fikrim Var' başlığı altında kendi profesyonel ve yenilikçi alternatiflerini sun."
+4. Kullanıcı "Özel İstekler" seçmişse, bunları promptun içine zorunlu görevler olarak yedir. Örneğin, sistem panelleri istenmişse ayrıntılı mimari dökümü iste; veritabanı istenmişse Markdown tabloları ve ilişkileri talep et; maliyet/kar-zarar istenmişse detaylı bir finansal projeksiyon tablosu çizmesini emret.
+5. ŞEFFAFLIK KURALI: Hedef yapay zekaya şu komutu ver: "Bana her adımda neyi neden yaptığını ve bu kararın projenin geleceğine ne katacağını açıkla."
+6. Promptun en sonuna her zaman şu cümleyi ekle: "Şimdi derin bir nefes al, bu veriler ışığında bana adım adım uygulanabilir, üst düzey bir yol haritası sun."`;
+*/
+// YENİ: Tamamen Dinamik ve Analitik Master Prompt Motoru
+const systemMessageTemplate = `Sen dünyanın en çok kazanan "Prompt Mühendisi"sin.
+Görevin: Kullanıcının kısa ve ham fikrini alıp, onu devasa, zeki ve kopyalamaya hazır bir "Master Prompt"a (Ana Komut) dönüştürmek.
+Hedefimiz, kullanıcının senin ürettiğin bu metni alıp ChatGPT/Claude gibi bir yapay zekaya yapıştırdığında aylarca sürecek bir iş planını tek seferde almasıdır.
 
+KULLANICI VERİLERİ:
+- Uzmanlık Alanı: {analyst_type}
+- Kullanıcının Ham Fikri: {user_input}
+- Özel İstekler (Checkboxlar): {selected_features}
+
+ÜRETECEĞİN ÇIKTI İÇİN KESİN KURALLAR:
+1. Asla kullanıcıyla sohbet etme (Örn: "İşte promptunuz" deme). Sadece ve doğrudan kopyalanacak o efsanevi prompt metnini ver.
+2. Ürettiğin metin tamamen {analyst_type} uzmanına hitap eden bir EMİR KİPİ ile yazılmalıdır.
+3. [DİNAMİK ZENGİNLEŞTİRME]: Kullanıcının kısa fikrini olduğu gibi kopyalama! Onu profesyonel bir dille genişlet. (Örn: Kullanıcı "Yemeksepeti benzeri" dediyse, sen bunu promptun içinde "Yerel restoran ağını kurye operasyonlarıyla anlık (real-time) senkronize eden, kullanıcı dostu bir teslimat platformu" olarak tasvir et).
+4. [ÖZEL İSTEKLERİ FİKRE UYARLA]: Kullanıcının seçtiği özellikleri dümdüz listeleme. Onları fikre göre uyarla! Örneğin kullanıcı "Veritabanı Şeması" istediyse, promptun içine "Bu proje için Kullanıcı, Sepet, Ödeme, Restoran tablolarını içeren..." gibi projenin doğasına uygun spesifik detaylar ekleyerek iste.
+5. [SİHİRLİ KURALLAR]: Promptun sonuna her zaman şu 3 zorunlu kuralı ekle:
+   - "💡 DAHA İYİ BİR FİKRİM VAR KURALI: Benim sunduğum bu vizyonu körü körüne kabul etme. Eğer mimaride, iş modelinde veya özelliklerde piyasa standartlarının gerisinde bir şey görürsen, inisiyatif al ve '💡 Daha İyi Bir Fikrim Var' başlığıyla bana kendi profesyonel/inovatif alternatiflerini sun."
+   - "ŞEFFAFLIK KURALI: Aldığın her teknik veya stratejik kararın nedenini ve projenin geleceğine ne katacağını bana açıkla."
+   - "Şimdi derin bir nefes al, bir kahve iç ve tüm bu veriler ışığında bana adım adım uygulanabilir, üst düzey bir yol haritası sun."`;
 export async function POST(request: Request) {
   try {
-    // 1. Supabase SSR İstemcisini Kur ve Oturumu Kontrol Et
     const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,18 +67,17 @@ export async function POST(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (!user || authError) {
-      return NextResponse.json({ message: 'Yetkisiz işlem. Lütfen giriş yapın.' }, { status: 401 });
+      return NextResponse.json({ message: 'Lütfen prompt oluşturmak için giriş yapın.' }, { status: 401 });
     }
 
-    // 2. İstek Verilerini (Body) Al
     const body = await request.json();
-    const { promptInput, selectedAnalyst, responseLength } = body;
+    // YENİ: selectedFeatures array'ini de body'den alıyoruz
+    const { promptInput, selectedAnalyst, selectedFeatures } = body;
 
     if (!promptInput || !selectedAnalyst) {
       return NextResponse.json({ message: 'Eksik bilgi gönderildi.' }, { status: 400 });
     }
 
-    // 3. Veritabanından Kullanıcının Kredisini Kontrol Et
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('credits')
@@ -75,35 +90,39 @@ export async function POST(request: Request) {
 
     if (profile.credits <= 0) {
       return NextResponse.json(
-        { message: 'Krediniz bitmiştir. Lütfen yarın tekrar deneyin veya hesabınızı yükseltin.' },
-        { status: 402 } // 402: Payment Required (Kredi Bitti)
+        { message: 'Krediniz bitmiştir. Lütfen hesabınızı yükseltin.' },
+        { status: 402 } 
       );
     }
 
-    // 4. OpenAI API'sine İsteği Gönder (Fikir Fabrikası Devrede)
-    const fullSystemMessage = systemMessageTemplate.replace('{analist}', selectedAnalyst);
+    // Seçilen özellikleri (checkboxları) virgülle ayrılmış bir metne dönüştür
+    const featuresText = selectedFeatures && selectedFeatures.length > 0 
+      ? selectedFeatures.join(", ") 
+      : "Özel bir istek belirtilmedi. Temel standartlara göre analiz et.";
+
+    // Şablonu kullanıcı verileriyle doldur
+    let fullSystemMessage = systemMessageTemplate
+      .replace(/{analyst_type}/g, selectedAnalyst)
+      .replace(/{user_input}/g, promptInput)
+      .replace(/{selected_features}/g, featuresText);
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Maksimum performans / minimum maliyet
+      model: "gpt-4o-mini", // İstek kompleksleştiği için 4o-mini ideal hız/maliyet sunar
       messages: [
         { role: "system", content: fullSystemMessage },
-        { role: "user", content: promptInput },
+        { role: "user", content: `Fikrim: ${promptInput}. Özel İsteklerim: ${featuresText}. Bana ChatGPT'ye kopyalayacağım emir metnini ver.` },
       ],
       temperature: 0.7,
-      max_tokens: responseLength === 'uzun' ? 1024 : 512,
+      max_tokens: 1500, // Kapsamlı promptlar üreteceğimiz için token sınırını artırdık
     });
     
     const generatedPrompt = completion.choices[0].message.content;
 
-    // 5. BAŞARILI SONUÇ: Veritabanı İşlemlerini Yap (Kredi Düş, Log Tut, Promptu Kaydet)
-    
-    // 5.1: Krediyi 1 Düşür
     await supabase
       .from('profiles')
       .update({ credits: profile.credits - 1 })
       .eq('id', user.id);
 
-    // 5.2: Kredi Logu Tut (Ne zaman, kime, ne için kredi harcandı?)
     await supabase
       .from('credit_logs')
       .insert({
@@ -112,7 +131,7 @@ export async function POST(request: Request) {
         action: 'generate_prompt'
       });
 
-    // 5.3: Gelecekteki "Topluluk/Keşfet" sekmesi için promptu kaydet
+    // YENİ: Hangi checkbox'ların seçildiğini veritabanına JSON olarak kaydediyoruz (Gelecek veri analizleri için altın değerinde)
     await supabase
       .from('prompts')
       .insert({
@@ -120,11 +139,10 @@ export async function POST(request: Request) {
         analyst_type: selectedAnalyst,
         user_input: promptInput,
         ai_output: generatedPrompt,
-        is_public: true, // Şimdilik hepsi public, V2'de premiumlar gizleyebilecek
-        metadata: { response_length: responseLength }
+        is_public: true,
+        metadata: { selected_features: selectedFeatures }
       });
 
-    // 6. Sonucu Frontend'e Gönder
     return NextResponse.json({ result: generatedPrompt }, { status: 200 });
 
   } catch (error: any) {
