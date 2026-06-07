@@ -27,9 +27,11 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // Oturum kontrolü
   const { data: { user } } = await supabase.auth.getUser()
 
   // GÜVENLİK KURALLARI
+  // 1. Ziyaretçi API'ye istek atmaya çalışıyorsa engelle (401 Unauthorized)
   if (request.nextUrl.pathname.startsWith('/api/generate') && !user) {
     return NextResponse.json(
       { message: 'Lütfen prompt oluşturmak için giriş yapın.' },
@@ -37,6 +39,7 @@ export async function middleware(request: NextRequest) {
     )
   }
 
+  // 2. Giriş yapmış kullanıcı /auth sayfasına girmek isterse ana sayfaya yönlendir
   if (request.nextUrl.pathname.startsWith('/auth') && user) {
     return NextResponse.redirect(new URL('/', request.url))
   }
@@ -44,6 +47,7 @@ export async function middleware(request: NextRequest) {
   return supabaseResponse
 }
 
+// Middleware'in çalışacağı yollar (Statik dosyalar hariç)
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
