@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   BsStars, BsLightningCharge, BsClipboard, BsCheck2, BsGem, BsX, 
-  BsCodeSlash, BsBriefcase, BsPalette, BsMegaphone, BsCheckSquareFill, BsSquare 
+  BsCodeSlash, BsBriefcase, BsPalette, BsMegaphone, BsCheckSquareFill, BsSquare, BsShieldLock 
 } from "react-icons/bs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,7 @@ function useTypewriter(texts: string[], delay = 80, pause = 2000) {
   const [text, setText] = useState("");
   const [index, setIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isPremiumPanelOpen, setIsPremiumPanelOpen] = useState(false);
 
   useEffect(() => {
     const currentText = texts[index];
@@ -38,7 +39,6 @@ function useTypewriter(texts: string[], delay = 80, pause = 2000) {
   return text;
 }
 
-// YENİ: Profesyonel Kategoriler ve Alt Hedefler (Checkboxlar)
 const CATEGORIES = [
   {
     id: "yazilim",
@@ -86,10 +86,13 @@ export default function HomePage() {
   const [promptInput, setPromptInput] = useState("");
   const [promptOutput, setPromptOutput] = useState("");
   
-  // YENİ: Dinamik Seçim Stateleri
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   
+  // YENİ: Premium Özel İstek Stateleri
+  const [premiumRequests, setPremiumRequests] = useState<string[]>(["", "", ""]);
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
+  const [isPremiumPanelOpen, setIsPremiumPanelOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -97,6 +100,29 @@ export default function HomePage() {
   const [user, setUser] = useState<any>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const router = useRouter();
+
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+  const handleUpgrade = async (planType: string) => {
+    setIsCheckoutLoading(true);
+    try {
+      const response = await fetch('/api/checkout', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planType }) 
+      });
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.message);
+
+      if (data.url) {
+        window.location.href = data.url; 
+      }
+    } catch (error) {
+      console.error("Ödeme ekranı açılamadı:", error);
+    } finally {
+      setIsCheckoutLoading(false);
+    }
+  };
 
   const placeholders = [
     "Yemeksepeti gibi çok panelli bir teslimat sistemi...",
@@ -113,13 +139,18 @@ export default function HomePage() {
         setUser(authData.user);
         const { data: profile } = await supabase
           .from('profiles')
-          .select('credits')
+          .select('credits, is_premium') // is_premium çekiliyor
           .eq('id', authData.user.id)
           .single();
-        if (profile) setCredits(profile.credits);
+          
+        if (profile) {
+          setCredits(profile.credits);
+          setIsPremiumUser(profile.is_premium || false); // YENİ: Premium kontrolü
+        }
       } else {
         setUser(null);
         setCredits(null);
+        setIsPremiumUser(false);
       }
     };
     getUserData();
@@ -128,7 +159,21 @@ export default function HomePage() {
     return () => authListener.subscription.unsubscribe();
   }, []);
 
-  // Kategori değiştiğinde checkbox'ları sıfırla
+  useEffect(() => {
+    const handleOpenModal = () => setShowUpgradeModal(true);
+    window.addEventListener("openUpgradeModal", handleOpenModal);
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("upgrade") === "true") {
+      setShowUpgradeModal(true);
+      router.replace("/", { scroll: false });
+    }
+
+    return () => {
+      window.removeEventListener("openUpgradeModal", handleOpenModal);
+    };
+  }, [router]);
+
   const handleCategoryChange = (category: any) => {
     setActiveCategory(category);
     setSelectedFeatures([]);
@@ -140,6 +185,13 @@ export default function HomePage() {
         ? prev.filter(id => id !== featureId)
         : [...prev, featureId]
     );
+  };
+
+  // YENİ: Premium Input Değişim Fonksiyonu
+  const handlePremiumRequestChange = (index: number, value: string) => {
+    const updated = [...premiumRequests];
+    updated[index] = value;
+    setPremiumRequests(updated);
   };
 
   const handleGeneratePrompt = async () => {
@@ -154,10 +206,12 @@ export default function HomePage() {
     setPromptOutput("");
 
     try {
-      // YENİ: Seçilen özellikleri bulup API'ye gönderiyoruz
       const featuresToSend = activeCategory.features
         .filter(f => selectedFeatures.includes(f.id))
         .map(f => f.label);
+
+      // YENİ: Sadece dolu olan premium istekleri filtreleyip API'ye gönderiyoruz
+      const premiumToSend = isPremiumUser ? premiumRequests.filter(r => r.trim() !== "") : [];
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -165,7 +219,8 @@ export default function HomePage() {
         body: JSON.stringify({ 
           promptInput, 
           selectedAnalyst: activeCategory.title, 
-          selectedFeatures: featuresToSend // Artık bu veriler backend'e akıyor!
+          selectedFeatures: featuresToSend,
+          premiumRequests: premiumToSend // Backend'e giden yeni veri
         }),
       });
 
@@ -203,7 +258,6 @@ export default function HomePage() {
     <div className="relative min-h-screen flex flex-col items-center justify-start p-4 sm:p-8 overflow-hidden font-sans">
       <Header />
 
-      {/* Arka Plan Animasyonları */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none fixed">
         <div className="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-purple-600/20 rounded-full blur-[120px] animate-blob" />
         <div className="absolute top-[20%] right-[-10%] w-[35rem] h-[35rem] bg-blue-600/20 rounded-full blur-[120px] animate-blob animation-delay-2000" />
@@ -216,7 +270,6 @@ export default function HomePage() {
         transition={{ duration: 0.8, ease: "easeOut" }}
         className="z-10 w-full max-w-7xl mx-auto flex flex-col gap-8"
       >
-        {/* Başlık Alanı */}
         <div className="text-center space-y-4 mb-8">
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
@@ -235,10 +288,8 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Ana İçerik Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full pb-10">
           
-          {/* Sol Panel: Girdi Alanı */}
           <motion.div 
             initial={{ x: -30, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -256,7 +307,6 @@ export default function HomePage() {
 
             <div className="space-y-6 mt-auto">
               
-              {/* Kategori Seçimi */}
               <div>
                 <p className="text-sm text-gray-400 mb-3 ml-1 font-medium">1. Uzmanlık Alanı Seçin</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -277,7 +327,6 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Dinamik Checkboxlar */}
               <div className="min-h-[120px]">
                 <p className="text-sm text-gray-400 mb-3 ml-1 font-medium flex items-center justify-between">
                   <span>2. Özel İstekler (İsteğe Bağlı)</span>
@@ -315,10 +364,65 @@ export default function HomePage() {
                 </AnimatePresence>
               </div>
 
+             
+              {/* YENİ: AÇILIR-KAPANIR (ACCORDION) PREMIUM ÖZEL İSTEK PANELİ */}
+              <div className="mt-4 border-t border-white/5 pt-6 relative">
+                {/* Accordion Başlığı / Tetikleyici */}
+                <button 
+                  onClick={() => {
+                    if (!isPremiumUser) {
+                      setShowUpgradeModal(true); // Free kullanıcı tıklarsa direkt satın almaya yolla!
+                    } else {
+                      setIsPremiumPanelOpen(!isPremiumPanelOpen); // Premium ise aç/kapat
+                    }
+                  }}
+                  className="w-full flex items-center justify-between group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="px-2 py-0.5 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-[10px] font-bold rounded uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-yellow-500/20">
+                      <BsGem className="text-[9px]" /> Premium
+                    </span>
+                    <h4 className="text-sm font-bold text-gray-300 group-hover:text-white transition-colors tracking-wide">Özel Koşul ve Talimatlar (İsteğe Bağlı)</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!isPremiumUser && <BsShieldLock className="text-yellow-500/70" />}
+                    <div className={`text-gray-500 transition-transform duration-300 ${isPremiumPanelOpen ? 'rotate-180' : ''}`}>
+                      ▼
+                    </div>
+                  </div>
+                </button>
+
+                {/* Accordion İçeriği (Sadece açıkken ve Premiumken görünür) */}
+                <AnimatePresence>
+                  {isPremiumPanelOpen && isPremiumUser && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pt-4 grid grid-cols-1 gap-3 bg-black/20 border border-white/5 p-4 rounded-2xl mt-3">
+                        {[0, 1, 2].map((idx) => (
+                          <input
+                            key={idx}
+                            type="text"
+                            maxLength={150}
+                            placeholder={idx === 0 ? 'Örn: Hedef kitlem Z kuşağı girişimcileri olsun.' : idx === 1 ? 'Reklam bütçesi analizi katmanını detaylı ekle.' : 'Risk faktörlerini madde madde analiz et.'}
+                            value={premiumRequests[idx]}
+                            onChange={(e) => handlePremiumRequestChange(idx, e.target.value)}
+                            className="w-full bg-black/40 border border-white/5 focus:border-yellow-500/40 rounded-xl py-2.5 px-4 text-xs sm:text-sm text-gray-200 placeholder-gray-600 outline-none transition-all font-light"
+                          />
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               <button
                 onClick={user ? handleGeneratePrompt : () => router.push('/auth')}
                 disabled={isLoading || (user && !promptInput.trim())}
-                className="w-full py-4 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 focus:ring-4 focus:ring-purple-500/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 hover:shadow-purple-700/40 transform hover:-translate-y-1"
+                className="w-full py-4 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 focus:ring-4 focus:ring-purple-500/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 hover:shadow-purple-700/40 transform hover:-translate-y-1 mt-2"
               >
                 {isLoading ? (
                   <div className="flex items-center gap-2">
@@ -335,7 +439,6 @@ export default function HomePage() {
             </div>
           </motion.div>
 
-          {/* Sağ Panel: Çıktı Alanı */}
           <motion.div 
             initial={{ x: 30, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -377,33 +480,119 @@ export default function HomePage() {
         </div>
       </motion.div>
 
-      {/* PREMIUM YÜKSELTME MODALI */}
       <AnimatePresence>
         {showUpgradeModal && (
-          // Modal Kodu Tamamen Aynı Kaldı
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowUpgradeModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm glass-panel border border-yellow-500/30 rounded-3xl p-8 text-center overflow-hidden shadow-2xl shadow-yellow-500/10">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent blur-sm opacity-50" />
-              <button onClick={() => setShowUpgradeModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
-                <BsX className="text-2xl" />
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowUpgradeModal(false)}
+              className="absolute inset-0 bg-black/70 backdrop-blur-md cursor-pointer fixed"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="relative w-full max-w-4xl bg-[#060a13]/90 border border-purple-500/20 rounded-3xl p-6 sm:p-10 text-center shadow-2xl overflow-hidden my-auto"
+            >
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-[2px] bg-gradient-to-r from-transparent via-purple-500 to-transparent blur-sm" />
+              
+              <button 
+                onClick={() => setShowUpgradeModal(false)}
+                className="absolute top-6 right-6 text-gray-400 hover:text-white transition-colors bg-white/5 p-2 rounded-full"
+              >
+                <BsX className="text-xl" />
               </button>
-              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/30 mb-6 transform rotate-12">
-                <BsGem className="text-3xl text-white transform -rotate-12" />
+
+              <div className="mb-8">
+                <h3 className="text-3xl font-extrabold text-white mb-2">
+                  Planınızı Seçin ve <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Üretmeye Devam Edin</span>
+                </h3>
+                <p className="text-gray-400 text-sm max-w-md mx-auto font-light">
+                  İhtiyacınıza en uygun paketi seçerek Fikir Fabrikası'nın ve topluluğun tüm sınırlarını kaldırın.
+                </p>
               </div>
-              <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-500 mb-2">
-                Krediniz Tükendi
-              </h3>
-              <p className="text-gray-300 text-sm mb-8 font-light leading-relaxed">
-                Harika fikirler üretiyorsunuz! Fikir Fabrikasını kullanmaya devam etmek ve Premium özelliklerin kilidini açmak için hesabınızı yükseltin.
-              </p>
-              <button className="w-full py-3.5 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_25px_rgba(245,158,11,0.5)] transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
-                <BsLightningCharge />
-                Premium'a Geç (Yakında)
-              </button>
-              <button onClick={() => setShowUpgradeModal(false)} className="mt-4 text-sm text-gray-400 hover:text-white transition-colors">
-                Belki daha sonra
-              </button>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left mt-4">
+                
+                <div className="glass-panel border border-white/5 rounded-2xl p-6 flex flex-col justify-between relative group hover:border-blue-500/30 transition-colors">
+                  <div>
+                    <span className="px-2.5 py-1 bg-blue-500/10 text-blue-400 text-xs font-semibold rounded-md uppercase tracking-wider">Kredi Paketi</span>
+                    <h4 className="text-xl font-bold text-white mt-3">10 kredi Paketi</h4>
+                    <p className="text-gray-400 text-xs mt-1 font-light">Sadece üretim yapmak isteyen bağımsız geliştiriciler için.</p>
+                    <div className="mt-4 flex items-baseline text-white">
+                      <span className="text-3xl font-extrabold tracking-tight">$5.99</span>
+                      <span className="ml-1 text-sm font-semibold text-gray-400">/tek seferlik</span>
+                    </div>
+                    <ul className="mt-6 space-y-3 text-xs text-gray-300">
+                      <li className="flex items-center gap-2"><BsCheck2 className="text-blue-400 text-lg" /> 10 Yeni Prompt Üretim Kredisi</li>
+                      <li className="flex items-center gap-2"><BsCheck2 className="text-blue-400 text-lg" /> Tüm Analist Türlerine Erişim</li>
+                      <li className="text-gray-500 line-through flex items-center gap-2"><BsX className="text-gray-500 text-lg" /> Forum Premium Rozeti</li>
+                    </ul>
+                  </div>
+                  <button 
+                    onClick={() => handleUpgrade("kredi_100")}
+                    disabled={isCheckoutLoading}
+                    className="w-full mt-8 py-3 bg-white/5 hover:bg-blue-600 hover:text-white text-gray-200 font-medium rounded-xl transition-all text-sm text-center"
+                  >
+                    Satın Al
+                  </button>
+                </div>
+
+                <div className="glass-panel border-2 border-purple-500/40 rounded-2xl p-6 flex flex-col justify-between relative shadow-xl shadow-purple-500/5 bg-gradient-to-b from-purple-500/5 to-transparent">
+                  <div className="absolute top-0 right-6 -translate-y-1/2 px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold uppercase rounded-full tracking-wider shadow-lg">En Popüler</div>
+                  <div>
+                    <span className="px-2.5 py-1 bg-purple-500/10 text-purple-400 text-xs font-semibold rounded-md uppercase tracking-wider">Full Paket (Abonelik)</span>
+                    <h4 className="text-xl font-bold text-white mt-3">Premium Pro</h4>
+                    <p className="text-gray-400 text-xs mt-1 font-light">Fikirlerini hem üretmek hem de toplulukla büyütmek isteyenler için.</p>
+                    <div className="mt-4 flex items-baseline text-white">
+                      <span className="text-3xl font-extrabold tracking-tight">$9.99</span>
+                      <span className="ml-1 text-sm font-semibold text-gray-400">/aylık</span>
+                    </div>
+                    <ul className="mt-6 space-y-3 text-xs text-gray-300">
+                      <li className="flex items-center gap-2"><BsCheck2 className="text-purple-400 text-lg" /> Her Ay 300 Üretim Kredisi</li>
+                      <li className="flex items-center gap-2"><BsCheck2 className="text-purple-400 text-lg" /> Forumda Öne Çıkan Profil & Yorumlar</li>
+                      <li className="flex items-center gap-2"><BsCheck2 className="text-purple-400 text-lg" /> Altın "Premium" Üye Rozeti</li>
+                      <li className="flex items-center gap-2"><BsCheck2 className="text-purple-400 text-lg" /> Premium Özel Koşul Ekleme Hakkı</li>
+                    </ul>
+                  </div>
+                  <button 
+                    onClick={() => handleUpgrade("premium_pro")}
+                    disabled={isCheckoutLoading}
+                    className="w-full mt-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl transition-all text-sm text-center shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+                  >
+                    Hemen Katıl
+                  </button>
+                </div>
+
+                <div className="glass-panel border border-white/5 rounded-2xl p-6 flex flex-col justify-between relative group hover:border-cyan-500/30 transition-colors">
+                  <div>
+                    <span className="px-2.5 py-1 bg-cyan-500/10 text-cyan-400 text-xs font-semibold rounded-md uppercase tracking-wider">Topluluk Paketi</span>
+                    <h4 className="text-xl font-bold text-white mt-3">Forum Özel Üyelik</h4>
+                    <p className="text-gray-400 text-xs mt-1 font-light">Kredi ihtiyacı olmayan, sadece networking ve iş geliştirmeye odaklananlar için.</p>
+                    <div className="mt-4 flex items-baseline text-white">
+                      <span className="text-3xl font-extrabold tracking-tight">$4.99</span>
+                      <span className="ml-1 text-sm font-semibold text-gray-400">/aylık</span>
+                    </div>
+                    <ul className="mt-6 space-y-3 text-xs text-gray-300">
+                      <li className="flex items-center gap-2"><BsCheck2 className="text-cyan-400 text-lg" /> Sınırsız Forum Paylaşımı & Yorum</li>
+                      <li className="flex items-center gap-2"><BsCheck2 className="text-cyan-400 text-lg" /> Diğer Girişimcilere Özel Mesaj/Yorum</li>
+                      <li className="flex items-center gap-2"><BsCheck2 className="text-cyan-400 text-lg" /> Mavi "Topluluk Lideri" Rozeti</li>
+                      <li className="text-gray-500 line-through flex items-center gap-2"><BsX className="text-gray-500 text-lg" /> Premium Özel Koşul Hakkı</li>
+                    </ul>
+                  </div>
+                  <button 
+                    onClick={() => handleUpgrade("forum_only")}
+                    disabled={isCheckoutLoading}
+                    className="w-full mt-8 py-3 bg-white/5 hover:bg-cyan-600 hover:text-white text-gray-200 font-medium rounded-xl transition-all text-sm text-center"
+                  >
+                    Üye Ol
+                  </button>
+                </div>
+
+              </div>
             </motion.div>
           </div>
         )}

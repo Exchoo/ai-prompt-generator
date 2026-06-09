@@ -7,43 +7,41 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// YENİ: Dinamik ve Çok Daha Akıllı Sistem Şablonu
-/*
-const systemMessageTemplate = `Sen dünyanın en seçkin "Prompt Mühendisi" ve Sistem Mimarı'sın.
-Görevin: Kullanıcının sana verdiği ham fikri ve seçtiği "Özel İstekler"i analiz ederek, kullanıcının gidip doğrudan ChatGPT veya Claude'a yapıştırarak kusursuz sonuçlar alabileceği DEVASA, PROFESYONEL VE EKSİKSİZ BİR "MASTER PROMPT" üretmektir.
+// UZMANLIK ALANINA GÖRE ÖZELLEŞTİRİLMİŞ PROMPT SÖZLÜĞÜ
+const EXPERT_PROMPTS: Record<string, string> = {
+  "Yazılım & Sistem Mimarı": `Sen dünyanın en çok kazanan "Yazılım ve Sistem Mimarı"sın.
+Görevin: Kullanıcının fikrini alıp, frontend, backend, veritabanı şeması ve API yapısını içeren devasa bir teknik "Master Prompt"a dönüştürmek.
+ÖZEL KURALLAR: Çıktında mutlaka veri tablolarını (ilişkileriyle birlikte), kullanılacak teknoloji yığınını (Tech Stack) ve güvenlik/ölçeklenebilirlik katmanlarını emret. Yazılım mimarisi dışında gereksiz pazarlama terimlerine girme.`,
 
+  "Girişim & İş Geliştirme": `Sen silikon vadisinin en acımasız "Girişim ve İş Geliştirme (BizDev) Uzmanı"sın.
+Görevin: Kullanıcının ham fikrini alıp; gelir modelleri, pazar analizi, B2B/B2C metrikleri ve yatırımcı sunumu (Pitch Deck) kıvamında bir "Master Prompt"a dönüştürmek.
+ÖZEL KURALLAR: Çıktında mutlaka aylık yakım hızı (Burn Rate), CAC (Müşteri Edinme Maliyeti) LTV tahminleri ve SWOT analizini zorunlu kıl. Fikrin nerede batabileceğini sorgulayan risk analizleri eklet.`,
+
+  "Ürün Tasarımcısı (UI/UX)": `Sen Apple ve Airbnb standartlarında çalışan bir "Ürün Tasarımcısı (UI/UX)"sın.
+Görevin: Kullanıcının fikrini alıp; kullanıcı yolculuğu (User Journey Map), ekran hiyerarşileri, renk paleti psikolojisi ve Wireframe yapısını içeren bir "Master Prompt"a dönüştürmek.
+ÖZEL KURALLAR: Çıktında onboarding (sisteme alışma) sürecindeki pürüzleri nasıl sıfıra indireceğini, empty state (boş ekran) tasarımlarını ve renk kodlarını (HEX) zorunlu olarak iste.`,
+
+  "Pazarlama & Büyüme": `Sen dünyaca ünlü bir "Growth Hacker ve Pazarlama Dehası"sın.
+Görevin: Kullanıcının fikrini alıp; lansman stratejisi, SEO, sosyal medya hunisi (Funnel) ve viral büyüme döngülerini (Viral Loop) içeren bir "Master Prompt"a dönüştürmek.
+ÖZEL KURALLAR: Çıktında hedef kitle personasını (yaş, ilgi alanı, acı noktası), haftalık içerik takvimini ve düşük bütçeli gerilla pazarlama taktiklerini zorunlu olarak emret.`
+};
+
+// ORTAK VE TEMEL KURALLAR (Her promptun sonuna eklenir)
+const BASE_RULES = `
 KULLANICI VERİLERİ:
-- Uzmanlık Alanı: {analyst_type}
-- Fikir: {user_input}
-- Özel İstekler: {selected_features}
-
-ÜRETECEĞİN MASTER PROMPT'UN KURALLARI (Aşağıdaki kuralları üreteceğin metne yansıt):
-1. Çıktın sadece hedef yapay zekaya verilecek BİR EMİR metni olmalıdır. "İşte promptunuz" gibi giriş/çıkış cümleleri KESİNLİKLE kullanma.
-2. Promptun girişinde yapay zekaya şu rolü ver: "Sen dünya standartlarında bir {analyst_type} uzmanısın. Sadece söyleneni yapan bir asistan değil, inisiyatif alan vizyoner bir ortaksın."
-3. INISIYATİF KURALI: Promptun içine şu kesin talimatı ekle: "Kullanıcının vizyonunu analiz et. Eğer fikrinde mantıksal boşluklar, piyasa standartlarının gerisinde kalan yerler veya teknik eksiklikler görürsen, mutlaka '💡 Daha İyi Bir Fikrim Var' başlığı altında kendi profesyonel ve yenilikçi alternatiflerini sun."
-4. Kullanıcı "Özel İstekler" seçmişse, bunları promptun içine zorunlu görevler olarak yedir. Örneğin, sistem panelleri istenmişse ayrıntılı mimari dökümü iste; veritabanı istenmişse Markdown tabloları ve ilişkileri talep et; maliyet/kar-zarar istenmişse detaylı bir finansal projeksiyon tablosu çizmesini emret.
-5. ŞEFFAFLIK KURALI: Hedef yapay zekaya şu komutu ver: "Bana her adımda neyi neden yaptığını ve bu kararın projenin geleceğine ne katacağını açıkla."
-6. Promptun en sonuna her zaman şu cümleyi ekle: "Şimdi derin bir nefes al, bu veriler ışığında bana adım adım uygulanabilir, üst düzey bir yol haritası sun."`;
-*/
-// YENİ: Tamamen Dinamik ve Analitik Master Prompt Motoru
-const systemMessageTemplate = `Sen dünyanın en çok kazanan "Prompt Mühendisi"sin.
-Görevin: Kullanıcının kısa ve ham fikrini alıp, onu devasa, zeki ve kopyalamaya hazır bir "Master Prompt"a (Ana Komut) dönüştürmek.
-Hedefimiz, kullanıcının senin ürettiğin bu metni alıp ChatGPT/Claude gibi bir yapay zekaya yapıştırdığında aylarca sürecek bir iş planını tek seferde almasıdır.
-
-KULLANICI VERİLERİ:
-- Uzmanlık Alanı: {analyst_type}
 - Kullanıcının Ham Fikri: {user_input}
-- Özel İstekler (Checkboxlar): {selected_features}
+- Modüller: {selected_features}
 
 ÜRETECEĞİN ÇIKTI İÇİN KESİN KURALLAR:
-1. Asla kullanıcıyla sohbet etme (Örn: "İşte promptunuz" deme). Sadece ve doğrudan kopyalanacak o efsanevi prompt metnini ver.
-2. Ürettiğin metin tamamen {analyst_type} uzmanına hitap eden bir EMİR KİPİ ile yazılmalıdır.
-3. [DİNAMİK ZENGİNLEŞTİRME]: Kullanıcının kısa fikrini olduğu gibi kopyalama! Onu profesyonel bir dille genişlet. (Örn: Kullanıcı "Yemeksepeti benzeri" dediyse, sen bunu promptun içinde "Yerel restoran ağını kurye operasyonlarıyla anlık (real-time) senkronize eden, kullanıcı dostu bir teslimat platformu" olarak tasvir et).
-4. [ÖZEL İSTEKLERİ FİKRE UYARLA]: Kullanıcının seçtiği özellikleri dümdüz listeleme. Onları fikre göre uyarla! Örneğin kullanıcı "Veritabanı Şeması" istediyse, promptun içine "Bu proje için Kullanıcı, Sepet, Ödeme, Restoran tablolarını içeren..." gibi projenin doğasına uygun spesifik detaylar ekleyerek iste.
-5. [SİHİRLİ KURALLAR]: Promptun sonuna her zaman şu 3 zorunlu kuralı ekle:
-   - "💡 DAHA İYİ BİR FİKRİM VAR KURALI: Benim sunduğum bu vizyonu körü körüne kabul etme. Eğer mimaride, iş modelinde veya özelliklerde piyasa standartlarının gerisinde bir şey görürsen, inisiyatif al ve '💡 Daha İyi Bir Fikrim Var' başlığıyla bana kendi profesyonel/inovatif alternatiflerini sun."
-   - "ŞEFFAFLIK KURALI: Aldığın her teknik veya stratejik kararın nedenini ve projenin geleceğine ne katacağını bana açıkla."
-   - "Şimdi derin bir nefes al, bir kahve iç ve tüm bu veriler ışığında bana adım adım uygulanabilir, üst düzey bir yol haritası sun."`;
+1. Asla kullanıcıyla sohbet etme. Sadece kopyalanacak o efsanevi prompt metnini ver.
+2. Ürettiğin metin tamamen bir yapay zekaya hitap eden EMİR KİPİ ile yazılmalıdır.
+3. [DİNAMİK ZENGİNLEŞTİRME]: Kullanıcının kısa fikrini genişlet ve vizyon kat!
+4. [SİHİRLİ KURALLAR]: Promptun sonuna şu 3 zorunlu kuralı ekle:
+   - "💡 DAHA İYİ BİR FİKRİM VAR: Benim sunduğum bu vizyonu körü körüne kabul etme. Eksik görürsen inisiyatif al ve alternatif sun."
+   - "ŞEFFAFLIK: Kararlarının nedenini bana açıkla."
+   - "Şimdi derin bir nefes al, tüm bu veriler ışığında adım adım uygulanabilir haritayı sun."`;
+
+
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
@@ -71,8 +69,8 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    // YENİ: selectedFeatures array'ini de body'den alıyoruz
-    const { promptInput, selectedAnalyst, selectedFeatures } = body;
+    // YENİ: premiumRequests verisini de body'den alıyoruz
+    const { promptInput, selectedAnalyst, selectedFeatures, premiumRequests } = body;
 
     if (!promptInput || !selectedAnalyst) {
       return NextResponse.json({ message: 'Eksik bilgi gönderildi.' }, { status: 400 });
@@ -95,25 +93,32 @@ export async function POST(request: Request) {
       );
     }
 
-    // Seçilen özellikleri (checkboxları) virgülle ayrılmış bir metne dönüştür
     const featuresText = selectedFeatures && selectedFeatures.length > 0 
       ? selectedFeatures.join(", ") 
       : "Özel bir istek belirtilmedi. Temel standartlara göre analiz et.";
 
-    // Şablonu kullanıcı verileriyle doldur
-    let fullSystemMessage = systemMessageTemplate
-      .replace(/{analyst_type}/g, selectedAnalyst)
+   // Seçilen kategoriye ait özel prompt şablonunu çek, bulamazsa default bir metin ver
+    const expertTemplate = EXPERT_PROMPTS[selectedAnalyst] || EXPERT_PROMPTS["Girişim & İş Geliştirme"];
+    
+    // Uzmanlık şablonu ile temel kuralları birleştir
+    let fullSystemMessage = expertTemplate + BASE_RULES
       .replace(/{user_input}/g, promptInput)
       .replace(/{selected_features}/g, featuresText);
 
+    // YENİ: EĞER PREMIUM İSTEK VARSA ŞABLONUN SONUNA ENJEKTE ET
+    if (premiumRequests && premiumRequests.length > 0) {
+      fullSystemMessage += `\n\n⚠️ [KRİTİK PREMIUM KULLANICI TALEPLERİ]:
+Aşağıdaki maddeler doğrudan projenin sahibinin sana ilettiği "Özel İstekler"dir. Bu kurallara KESİNLİKLE uymalı, analizi bu talepler etrafında şekillendirmelisin:
+${premiumRequests.map((req: string, i: number) => `${i + 1}. ${req}`).join("\n")}`;
+    }
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // İstek kompleksleştiği için 4o-mini ideal hız/maliyet sunar
+      model: "gpt-4o-mini", 
       messages: [
         { role: "system", content: fullSystemMessage },
         { role: "user", content: `Fikrim: ${promptInput}. Özel İsteklerim: ${featuresText}. Bana ChatGPT'ye kopyalayacağım emir metnini ver.` },
       ],
       temperature: 0.7,
-      max_tokens: 1500, // Kapsamlı promptlar üreteceğimiz için token sınırını artırdık
+      max_tokens: 1500, 
     });
     
     const generatedPrompt = completion.choices[0].message.content;
@@ -131,7 +136,7 @@ export async function POST(request: Request) {
         action: 'generate_prompt'
       });
 
-    // YENİ: Hangi checkbox'ların seçildiğini veritabanına JSON olarak kaydediyoruz (Gelecek veri analizleri için altın değerinde)
+    // YENİ: premium_requests array'ini metadata json objesine kaydediyoruz ki detay sayfasında sergileyebilelim!
     await supabase
       .from('prompts')
       .insert({
@@ -140,7 +145,10 @@ export async function POST(request: Request) {
         user_input: promptInput,
         ai_output: generatedPrompt,
         is_public: true,
-        metadata: { selected_features: selectedFeatures }
+        metadata: { 
+          selected_features: selectedFeatures,
+          premium_requests: premiumRequests || [] 
+        }
       });
 
     return NextResponse.json({ result: generatedPrompt }, { status: 200 });

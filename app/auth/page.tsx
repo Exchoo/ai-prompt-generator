@@ -4,12 +4,11 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
-import { BsEnvelope, BsLock, BsArrowRight, BsStars, BsShieldCheck, BsGoogle, BsGithub } from "react-icons/bs";
+import { BsEnvelope, BsLock, BsArrowRight, BsStars, BsShieldCheck, BsGoogle, BsGithub, BsArrowLeft } from "react-icons/bs";
 import Link from "next/link";
 
-
 export default function AuthPage() {
-  const [isLogin, setIsLogin] = useState(true);
+  const [view, setView] = useState<'login' | 'register' | 'forgot_password'>('login');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -24,15 +23,26 @@ export default function AuthPage() {
     setSuccessMsg("");
 
     try {
-      if (isLogin) {
+      if (view === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         setSuccessMsg("Giriş başarılı! Yönlendiriliyorsunuz...");
         setTimeout(() => router.push("/"), 1500);
-      } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+      } else if (view === 'register') {
+        // YENİ: E-posta onaylandıktan sonra sitemize geri dönmesi için callback adresini verdik
+        const { error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
+        });
         if (error) throw error;
         setSuccessMsg("Kayıt başarılı! Lütfen e-posta adresinizi doğrulayın.");
+      } else if (view === 'forgot_password') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/update-password`,
+        });
+        if (error) throw error;
+        setSuccessMsg("Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.");
       }
     } catch (error: any) {
       console.error("Auth hatası:", error);
@@ -43,8 +53,18 @@ export default function AuthPage() {
   };
 
   const handleSocialLogin = async (provider: 'google' | 'github') => {
-    // UI için hazırlandı, arka plan entegrasyonu ilerleyen aşamalarda yapılacak
-    console.log(`${provider} ile giriş tetiklendi.`);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          // Sosyal ağdan döndüğünde oturumu açacak gizli rotamız
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      setErrorMsg(`${provider} ile giriş yapılamadı.`);
+    }
   };
 
   return (
@@ -65,15 +85,18 @@ export default function AuthPage() {
             <BsStars className="text-purple-400" />
             AI Prompt Generator
           </Link>
-          <p className="text-gray-400 mt-2 font-light">Fikirlerinize hayat vermek için giriş yapın.</p>
+          <p className="text-gray-400 mt-2 font-light">
+            {view === 'forgot_password' ? "Şifrenizi güvenle sıfırlayın." : "Fikirlerinize hayat vermek için giriş yapın."}
+          </p>
         </div>
 
-        {/* Form Alanı (layout prop'u ile yükseklik değişimleri animasyonlu hale getirildi) */}
-        <motion.div layout className="glass-panel rounded-3xl p-8 relative overflow-hidden">
+        <motion.div layout className="glass-panel rounded-3xl p-8 relative overflow-hidden shadow-2xl">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-1 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent blur-sm" />
 
           <motion.h2 layout className="text-3xl font-bold text-white mb-6 text-center">
-            {isLogin ? "Hoş Geldiniz" : "Hesap Oluşturun"}
+            {view === 'login' && "Hoş Geldiniz"}
+            {view === 'register' && "Hesap Oluşturun"}
+            {view === 'forgot_password' && "Şifremi Unuttum"}
           </motion.h2>
 
           <form onSubmit={handleAuth} className="space-y-5">
@@ -91,20 +114,41 @@ export default function AuthPage() {
               />
             </motion.div>
 
-            <motion.div layout className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-purple-400 transition-colors">
-                <BsLock />
-              </div>
-              <input
-                type="password"
-                placeholder="Şifreniz"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
-              />
-            </motion.div>
+            <AnimatePresence mode="popLayout">
+              {view !== 'forgot_password' && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }} 
+                  animate={{ opacity: 1, height: 'auto' }} 
+                  exit={{ opacity: 0, height: 0 }}
+                  className="relative group"
+                >
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-purple-400 transition-colors">
+                    <BsLock />
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Şifreniz"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {view === 'login' && (
+              <motion.div layout className="flex justify-end">
+                <button 
+                  type="button" 
+                  onClick={() => { setView('forgot_password'); setErrorMsg(""); setSuccessMsg(""); }}
+                  className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                >
+                  Şifremi unuttum
+                </button>
+              </motion.div>
+            )}
 
             <AnimatePresence mode="popLayout">
               {errorMsg && (
@@ -122,53 +166,58 @@ export default function AuthPage() {
             <motion.button
               layout
               type="submit"
-              disabled={isLoading || !email || !password}
+              disabled={isLoading || !email || (view !== 'forgot_password' && !password)}
               className="w-full py-3.5 mt-2 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 group transform hover:-translate-y-0.5"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <motion.span layout="position">{isLogin ? "Giriş Yap" : "Üye Ol"}</motion.span>
+                  <motion.span layout="position">
+                    {view === 'login' && "Giriş Yap"}
+                    {view === 'register' && "Üye Ol"}
+                    {view === 'forgot_password' && "Bağlantı Gönder"}
+                  </motion.span>
                   <BsArrowRight className="group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </motion.button>
           </form>
 
-          {/* Sosyal Giriş Bölümü */}
-          <motion.div layout className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10"></div>
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-3 bg-[#0a0f1e] text-gray-400 rounded-full border border-white/5">Veya şununla devam et</span>
-              </div>
-            </div>
-
-            <div className="flex gap-4 mt-6">
-              <button onClick={() => handleSocialLogin('google')} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors text-sm font-medium text-gray-300">
-                <BsGoogle className="text-lg text-white" /> Google
-              </button>
-              <button onClick={() => handleSocialLogin('github')} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors text-sm font-medium text-gray-300">
-                <BsGithub className="text-lg text-white" /> GitHub
-              </button>
-            </div>
-          </motion.div>
+          <AnimatePresence mode="popLayout">
+            {view !== 'forgot_password' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-8">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
+                  <div className="relative flex justify-center text-xs"><span className="px-3 bg-[#0a0f1e] text-gray-400 rounded-full border border-white/5">Veya şununla devam et</span></div>
+                </div>
+                <div className="flex gap-4 mt-6">
+                  {/* Google butonu hafif kırmızı ikon vurgusu ile */}
+                  <button onClick={() => handleSocialLogin('google')} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors text-sm font-medium text-gray-300 hover:text-white">
+                    <BsGoogle className="text-lg text-red-400" /> Google
+                  </button>
+                  {/* Github butonu temiz ve uyumlu */}
+                  <button onClick={() => handleSocialLogin('github')} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors text-sm font-medium text-gray-300 hover:text-white">
+                    <BsGithub className="text-lg text-white" /> GitHub
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <motion.div layout className="mt-6 text-center text-gray-400 text-sm">
-            {isLogin ? "Henüz hesabınız yok mu? " : "Zaten bir hesabınız var mı? "}
-            <button
-              type="button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setErrorMsg("");
-              }}
-              className="text-purple-400 font-semibold hover:text-purple-300 transition-colors focus:outline-none"
-            >
-              {isLogin ? "Hemen Üye Olun" : "Giriş Yapın"}
-            </button>
+            {view === 'forgot_password' ? (
+              <button type="button" onClick={() => { setView('login'); setErrorMsg(""); setSuccessMsg(""); }} className="text-purple-400 font-semibold hover:text-purple-300 transition-colors flex items-center justify-center gap-2 w-full">
+                <BsArrowLeft /> Giriş Ekranına Dön
+              </button>
+            ) : (
+              <>
+                {view === 'login' ? "Henüz hesabınız yok mu? " : "Zaten bir hesabınız var mı? "}
+                <button type="button" onClick={() => { setView(view === 'login' ? 'register' : 'login'); setErrorMsg(""); setSuccessMsg(""); }} className="text-purple-400 font-semibold hover:text-purple-300 transition-colors">
+                  {view === 'login' ? "Hemen Üye Olun" : "Giriş Yapın"}
+                </button>
+              </>
+            )}
           </motion.div>
         </motion.div>
       </motion.div>

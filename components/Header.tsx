@@ -1,39 +1,41 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { BsStars, BsGem, BsPersonCircle, BsBoxArrowRight } from "react-icons/bs";
+import { BsStars, BsGem, BsPersonCircle, BsBoxArrowRight, BsPlusLg, BsGear } from "react-icons/bs";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "../lib/supabase";
-import { motion } from "framer-motion";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [credits, setCredits] = useState<number | null>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
-  const pathname = usePathname(); // Hangi sayfada olduğumuzu anlamak için
+  const pathname = usePathname();
 
   useEffect(() => {
     const getUserData = async () => {
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
         setUser(authData.user);
-        const { data: profile } = await supabase
+        const { data: profileData } = await supabase
           .from('profiles')
-          .select('credits')
+          .select('credits, username, avatar_url')
           .eq('id', authData.user.id)
           .single();
-        if (profile) setCredits(profile.credits);
+        if (profileData) {
+          setProfile(profileData);
+          setCredits(profileData.credits);
+        }
       } else {
         setUser(null);
+        setProfile(null);
         setCredits(null);
       }
     };
 
     getUserData();
 
-    // Promp üretildiğinde kredinin güncellenmesi için özel eventi dinle
     const handleCreditUpdate = () => getUserData();
     window.addEventListener("creditsUpdated", handleCreditUpdate);
 
@@ -49,13 +51,14 @@ export default function Header() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setIsMenuOpen(false);
     router.refresh();
   };
 
+  const usernameDisplay = profile?.username || user?.email?.split('@')[0] || "Kullanıcı";
+
   return (
     <header className="z-50 w-full max-w-7xl mx-auto flex justify-between items-center mb-8 mt-4 relative px-4">
-      {/* Sol Kısım: Logo */}
+      {/* Sol Kısım: Logo (SENİN ESKİ VE ŞIK TASARIMIN) */}
       <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 hover:opacity-80 transition-opacity">
         <BsStars className="text-purple-400" />
         <span className="hidden sm:inline">AI Prompt Generator</span>
@@ -63,7 +66,8 @@ export default function Header() {
 
       {/* Sağ Kısım: Butonlar ve Profil */}
       <div className="flex items-center gap-3 sm:gap-4">
-        {/* Keşfet Butonu (Keşfet sayfasındayken gizlenir) */}
+        
+        {/* Keşfet Butonu */}
         {pathname !== "/explore" && (
           <Link 
             href="/explore" 
@@ -73,7 +77,7 @@ export default function Header() {
           </Link>
         )}
 
-        {/* Ana Sayfa Butonu (Sadece Keşfet sayfasındayken görünür) */}
+        {/* Ana Sayfa Butonu */}
         {pathname === "/explore" && (
           <Link 
             href="/" 
@@ -83,43 +87,58 @@ export default function Header() {
           </Link>
         )}
 
-        {/* Kredi Göstergesi (Sadece giriş yapıldıysa) */}
+        {/* Kredi Göstergesi & Yükseltme Butonu */}
         {user && credits !== null && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 rounded-full">
-            <BsGem className="text-yellow-400 text-xs" />
-            <span className="text-sm font-bold text-yellow-100">{credits} Kredi</span>
-          </div>
+          <button 
+            onClick={() => {
+              if (pathname === "/") window.dispatchEvent(new Event("openUpgradeModal"));
+              else router.push("/?upgrade=true");
+            }}
+            className="group relative flex items-center justify-center h-10 w-28 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 hover:from-yellow-500/20 hover:to-orange-500/20 border border-yellow-500/20 hover:border-yellow-400/50 rounded-full transition-all duration-300 shadow-[0_0_0_rgba(234,179,8,0)] hover:shadow-[0_0_15px_rgba(234,179,8,0.2)] overflow-hidden"
+          >
+            <div className="absolute flex items-center gap-2 transition-all duration-300 group-hover:-translate-y-8 opacity-100 group-hover:opacity-0">
+              <BsGem className="text-yellow-400 text-xs" />
+              <span className="text-sm font-bold text-yellow-100">{credits} Kredi</span>
+            </div>
+            <div className="absolute flex items-center gap-2 transition-all duration-300 translate-y-8 group-hover:translate-y-0 opacity-0 group-hover:opacity-100">
+              <BsPlusLg className="text-yellow-400 text-[13px] font-extrabold" />
+              <span className="text-sm font-bold text-yellow-300 tracking-wide">Yükselt</span>
+            </div>
+          </button>
         )}
 
-        {/* Profil Menüsü veya Giriş Butonu */}
+        {/* ŞIK PROFİL DROPDOWN MENÜSÜ (YENİ EKLENEN KISIM) */}
         {user ? (
-          <div className="relative">
-            <button 
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all text-sm font-medium text-gray-300 backdrop-blur-md"
-            >
-              <BsPersonCircle className="text-lg text-purple-400" />
-              <span className="hidden sm:inline">{user.email?.split('@')[0]}</span>
-            </button>
+          <div className="relative group py-2">
+            {/* Hover Tetikleyici Alan */}
+            <div className="flex items-center gap-2 cursor-pointer bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 px-3 py-1.5 rounded-full transition-colors">
+              <div className="w-7 h-7 rounded-full bg-[#0d111a] border border-purple-500/30 overflow-hidden flex items-center justify-center">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <BsPersonCircle className="text-lg text-purple-400" />
+                )}
+              </div>
+              <span className="text-sm font-medium text-gray-200 hidden sm:block max-w-[100px] truncate">
+                {usernameDisplay}
+              </span>
+            </div>
 
-            {isMenuOpen && (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="absolute right-0 mt-2 w-48 bg-[#0a0f1e] border border-white/10 rounded-2xl shadow-xl overflow-hidden backdrop-blur-xl"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <p className="text-xs text-gray-400">Giriş yapıldı</p>
-                  <p className="text-sm text-white font-medium truncate" title={user.email}>{user.email}</p>
-                </div>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2"
-                >
-                  <BsBoxArrowRight /> Çıkış Yap
+            {/* Açılan Menü (Hover ile görünür) */}
+            <div className="absolute right-0 top-full mt-1 w-48 bg-[#0a0f1e]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 overflow-hidden z-50">
+              <div className="p-3 border-b border-white/5">
+                <p className="text-xs text-gray-500 font-medium">Giriş yapıldı</p>
+                <p className="text-sm text-white font-bold truncate" title={user.email}>{user.email}</p>
+              </div>
+              <div className="p-2 flex flex-col gap-1">
+                <Link href="/profile" className="flex items-center gap-3 px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
+                  <BsGear className="text-purple-400" /> Profilim
+                </Link>
+                <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm text-gray-300 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors w-full text-left">
+                  <BsBoxArrowRight className="text-red-400" /> Çıkış Yap
                 </button>
-              </motion.div>
-            )}
+              </div>
+            </div>
           </div>
         ) : (
           <Link 
